@@ -1,0 +1,51 @@
+shared-secret: "HmLyO0yFVkz8IFMjqAsPP1IIxdm-iq"
+shared-secret-header: "X-Shared-Secret"
+
+plugin-host: "0.0.0.0"
+plugin-port: 25575
+plugin-path: "/api"
+debug-logging: false
+allowed-methods:
+  - POST
+
+# JSON payload keys to resolve player references.
+payload:
+  player-name-keys:
+    - player_name
+    - player
+    - name
+  player-uuid-keys:
+    - player_uuid
+    - uuid
+
+# Commands to execute for each incoming action.
+# Placeholders: {player}, {uuid}, {action}, plus any JSON key from the payload.
+actions:
+  gradientApply:
+    enabled: true
+    commands: []
+  gradientClear:
+    enabled: true
+    commands: []
+  emblemApply:
+    enabled: true
+    commands: []
+  emblemClear:
+    enabled: true
+    commands: []
+  passApply:
+    enabled: true
+    commands: []
+  addWhiteList:
+    enabled: true
+    commands: []
+  removeWhiteList:
+    enabled: true
+    commands: []
+  updateSeason:
+    enabled: true
+    commands: []
+    delete-files:
+      - "plugins/simplewhitelist/whitelist.txt"
+    shutdown: true
+    shutdown-delay-ticks: 1
