@@ -49,3 +49,37 @@ actions:
       - "plugins/simplewhitelist/whitelist.txt"
     shutdown: true
     shutdown-delay-ticks: 1
+
+# Outgoing event dispatching (webhooks).
+event-dispatch:
+  enabled: false
+  base-url: "http://127.0.0.1:3000/webhook"
+  method: POST
+  timeout-seconds: 5
+  headers:
+    X-Shared-Secret: "replace-me"
+
+# Event routes and payload mapping.
+# Keys are event class names, either full or short (e.g. PlayerJoinEvent).
+event-routes:
+  PlayerJoinEvent:
+    enabled: true
+    method: POST
+    priority: NORMAL
+    ignore-cancelled: true
+    include-event-name: true
+    include-timestamp: true
+    payload:
+      player: "{event.player.name}"
+      uuid: "{event.player.uniqueId}"
+      world: "{event.player.world.name}"
+  PlayerFirstJoinEvent:
+    enabled: false
+    method: POST
+    priority: NORMAL
+    ignore-cancelled: true
+    include-event-name: true
+    include-timestamp: true
+    payload:
+      player: "{event.player.name}"
+      uuid: "{event.player.uniqueId}"

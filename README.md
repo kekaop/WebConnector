@@ -9,6 +9,7 @@ All accepted actions, headers, payload keys, and side effects are configured in 
 - Action routing via URL path segments.
 - Per-action commands, file deletions, and optional shutdown.
 - Placeholder expansion using any JSON payload key.
+- Optional event dispatch to external webhooks.
 
 ### Installation
 1. Drop the jar into your server `plugins/` folder.
@@ -24,6 +25,8 @@ Key options in `config.yml`:
 - `allowed-methods`: list of allowed HTTP methods (default `POST`).
 - `payload.player-name-keys`, `payload.player-uuid-keys`: keys used to resolve `{player}` and `{uuid}` placeholders.
 - `actions`: map of action names with their behavior.
+- `event-dispatch`: global settings for outgoing webhooks.
+- `event-routes`: per-event webhook configuration and payload mapping.
 
 Action options:
 - `enabled`: turn an action on/off.
@@ -56,6 +59,42 @@ Responses:
 - `401 {"status":"unauthorized"}` on missing/wrong secret.
 - `404 {"status":"not_found"}` on unknown action.
 - `405 {"status":"method_not_allowed"}` if method not allowed.
+
+### Event Dispatch (Outgoing)
+Enable in config:
+```
+event-dispatch:
+  enabled: true
+  base-url: "http://127.0.0.1:3000/webhook"
+  method: POST
+  headers:
+    X-Shared-Secret: "replace-me"
+```
+
+Add event routes:
+```
+event-routes:
+  PlayerJoinEvent:
+    enabled: true
+    payload:
+      player: "{event.player.name}"
+      uuid: "{event.player.uniqueId}"
+      world: "{event.player.world.name}"
+  PlayerFirstJoinEvent:
+    enabled: false
+    payload:
+      player: "{event.player.name}"
+      uuid: "{event.player.uniqueId}"
+```
+
+Payload template notes:
+- Use `{event.<path>}` to access event data via getters.
+- Example `{event.player.getNickName}` or `{event.player.nickname}`.
+- Each payload entry is sent as JSON to the configured endpoint.
+
+Custom events:
+- `PlayerFirstJoinEvent` fires on a player's first join.
+- Available fields: `{event.player.*}` (same as `PlayerJoinEvent`).
 
 ### Example
 Config action:
