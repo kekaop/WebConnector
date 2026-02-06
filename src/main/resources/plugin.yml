@@ -1,4 +1,4 @@
 name: WebConnector
-version: 1.0.1
+version: 1.0.2
 main: com.eldryn.webconnector.WebConnectorPlugin
 api-version: "1.21"
