@@ -297,7 +297,7 @@ public class WebConnectorPlugin extends JavaPlugin implements Listener {
     private Map<String, Object> buildEventPayload(EventDispatchRule rule, org.bukkit.event.Event event) {
         Map<String, Object> payload = new HashMap<>();
         if (rule.includeEventName) {
-            payload.put("event", rule.eventName);
+            payload.put(eventDispatchConfig.eventNameField, rule.eventName);
         }
         if (rule.includeTimestamp) {
             payload.put("timestamp", Instant.now().toString());
@@ -491,12 +491,16 @@ public class WebConnectorPlugin extends JavaPlugin implements Listener {
     private EventDispatchConfig loadEventDispatchConfig() {
         var section = getConfig().getConfigurationSection("event-dispatch");
         if (section == null) {
-            return new EventDispatchConfig(false, "", "POST", 5, Map.of());
+            return new EventDispatchConfig(false, "", "POST", 5, "event", Map.of());
         }
         boolean enabled = section.getBoolean("enabled", false);
         String baseUrl = section.getString("base-url", "");
         String method = normalizeHttpMethod(section.getString("method", "POST"));
         int timeout = section.getInt("timeout-seconds", 5);
+        String eventNameField = section.getString("event-name-field", "event");
+        if (eventNameField == null || eventNameField.isBlank()) {
+            eventNameField = "event";
+        }
         Map<String, String> headers = new HashMap<>();
         var headerSection = section.getConfigurationSection("headers");
         if (headerSection != null) {
@@ -504,7 +508,7 @@ public class WebConnectorPlugin extends JavaPlugin implements Listener {
                 headers.put(key, String.valueOf(headerSection.get(key)));
             }
         }
-        return new EventDispatchConfig(enabled, baseUrl, method, timeout, headers);
+        return new EventDispatchConfig(enabled, baseUrl, method, timeout, eventNameField, headers);
     }
 
     private Map<Class<?>, EventDispatchRule> loadEventDispatchRules() {
@@ -632,6 +636,7 @@ public class WebConnectorPlugin extends JavaPlugin implements Listener {
             String baseUrl,
             String method,
             int timeoutSeconds,
+            String eventNameField,
             Map<String, String> headers
     ) {}
 

@@ -67,6 +67,7 @@ event-dispatch:
   enabled: true
   base-url: "http://127.0.0.1:3000/webhook"
   method: POST
+  event-name-field: "event"
   headers:
     X-Shared-Secret: "replace-me"
 ```
