@@ -1,4 +1,6 @@
 .gradle/
+.gradle-tmp/
+.gradle-clean/
 build/
 .idea/
 .vscode/

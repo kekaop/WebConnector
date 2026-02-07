@@ -11,6 +11,13 @@ All accepted actions, headers, payload keys, and side effects are configured in 
 - Placeholder expansion using any JSON payload key.
 - Optional event dispatch to external webhooks.
 
+### Building
+From the project root, run:
+- **Windows:** `gradlew.bat build`
+- **Linux / macOS:** `./gradlew build`
+
+The jar is produced in `build/libs/`. The project uses the Gradle wrapper (Gradle 9.3) so no local Gradle install is required.
+
 ### Installation
 1. Drop the jar into your server `plugins/` folder.
 2. Start the server once to generate `plugins/WebConnector/config.yml`.

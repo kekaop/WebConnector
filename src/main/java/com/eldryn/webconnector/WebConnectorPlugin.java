@@ -563,6 +563,7 @@ public class WebConnectorPlugin extends JavaPlugin implements Listener {
     private Optional<Class<?>> resolveEventClass(String eventKey) {
         List<String> prefixes = List.of(
                 "",
+                "com.eldryn.webconnector.",
                 "org.bukkit.event.",
                 "org.bukkit.event.player.",
                 "org.bukkit.event.block.",
