@@ -1,0 +1,10 @@
+.gradle/
+build/
+.idea/
+.vscode/
+*.iml
+*.log
+out/
+bin/
+.gradle-clean/
+.gradle-tmp/
