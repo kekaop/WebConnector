@@ -1,4 +1,5 @@
-shared-secret: "HmLyO0yFVkz8IFMjqAsPP1IIxdm-iq"
+# Must match NodeDashboard's per-node shared secret.
+shared-secret: "replace-with-node-dashboard-secret"
 shared-secret-header: "X-Shared-Secret"
 
 plugin-host: "0.0.0.0"
@@ -21,6 +22,12 @@ payload:
 # Commands to execute for each incoming action.
 # Placeholders: {player}, {uuid}, {action}, plus any JSON key from the payload.
 actions:
+  # Used by NodeDashboard to stop this node through POST <plugin-path>/shutdownNode.
+  shutdownNode:
+    enabled: true
+    commands: []
+    shutdown: true
+    shutdown-delay-ticks: 20
   gradientApply:
     enabled: true
     commands: []

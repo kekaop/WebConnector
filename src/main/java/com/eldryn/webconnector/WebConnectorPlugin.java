@@ -20,6 +20,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.security.MessageDigest;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
@@ -59,6 +60,7 @@ public class WebConnectorPlugin extends JavaPlugin implements Listener {
     private Map<Class<?>, EventDispatchRule> eventDispatchRules = new HashMap<>();
     private HttpClient httpClient;
     private ExecutorService eventExecutor;
+    private ExecutorService httpExecutor;
     private Listener eventListener;
 
     @Override
@@ -77,6 +79,10 @@ public class WebConnectorPlugin extends JavaPlugin implements Listener {
         if (server != null) {
             server.stop(0);
             server = null;
+        }
+        if (httpExecutor != null) {
+            httpExecutor.shutdownNow();
+            httpExecutor = null;
         }
         if (eventExecutor != null) {
             eventExecutor.shutdownNow();
@@ -113,7 +119,8 @@ public class WebConnectorPlugin extends JavaPlugin implements Listener {
         try {
             server = HttpServer.create(new InetSocketAddress(pluginHost, pluginPort), 0);
             server.createContext(pluginPath, this::handleIncomingRequest);
-            server.setExecutor(Executors.newCachedThreadPool());
+            httpExecutor = Executors.newCachedThreadPool();
+            server.setExecutor(httpExecutor);
             server.start();
             getLogger().info("WebConnector API listening on " + pluginHost + ":" + pluginPort + pluginPath);
         } catch (IOException exception) {
@@ -156,15 +163,12 @@ public class WebConnectorPlugin extends JavaPlugin implements Listener {
     private void handleIncomingRequest(HttpExchange exchange) throws IOException {
         try {
             String method = exchange.getRequestMethod();
-            if (!allowedMethods.contains(method.toUpperCase())) {
+            if (!allowedMethods.contains(method.toUpperCase(Locale.ROOT))) {
                 sendResponse(exchange, 405, jsonStatus("method_not_allowed"));
                 return;
             }
 
-            Headers headers = exchange.getRequestHeaders();
-            String incomingSecret = headers.getFirst(sharedSecretHeader);
-            if (sharedSecret != null && !sharedSecret.isBlank()
-                    && (incomingSecret == null || !incomingSecret.equals(sharedSecret))) {
+            if (!isAuthorized(exchange)) {
                 sendResponse(exchange, 401, jsonStatus("unauthorized"));
                 return;
             }
@@ -246,12 +250,33 @@ public class WebConnectorPlugin extends JavaPlugin implements Listener {
     }
 
     private void sendResponse(HttpExchange exchange, int status, String body) throws IOException {
+        sendResponse(exchange, status, body, "application/json; charset=utf-8");
+    }
+
+    private void sendResponse(HttpExchange exchange, int status, String body, String contentType) throws IOException {
         byte[] payload = body.getBytes(StandardCharsets.UTF_8);
-        exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
+        exchange.getResponseHeaders().add("Content-Type", contentType);
         exchange.sendResponseHeaders(status, payload.length);
         try (OutputStream out = exchange.getResponseBody()) {
             out.write(payload);
         }
+    }
+
+    private boolean isAuthorized(HttpExchange exchange) {
+        if (sharedSecret == null || sharedSecret.isBlank()) {
+            return true;
+        }
+
+        Headers headers = exchange.getRequestHeaders();
+        String incomingSecret = headers.getFirst(sharedSecretHeader);
+        if (incomingSecret == null) {
+            return false;
+        }
+
+        return MessageDigest.isEqual(
+                sharedSecret.getBytes(StandardCharsets.UTF_8),
+                incomingSecret.getBytes(StandardCharsets.UTF_8)
+        );
     }
 
     private String jsonStatus(String status) {
@@ -322,14 +347,21 @@ public class WebConnectorPlugin extends JavaPlugin implements Listener {
     }
 
     private String extractAction(String path) {
-        if (!path.startsWith(pluginPath)) {
+        if (path == null) {
             return "";
         }
-        String remainder = path.substring(pluginPath.length());
-        if (remainder.startsWith("/")) {
-            remainder = remainder.substring(1);
+
+        if ("/".equals(pluginPath)) {
+            String action = path.startsWith("/") ? path.substring(1) : path;
+            return action.isBlank() || action.contains("/") ? "" : action;
         }
-        return remainder;
+
+        if (!path.startsWith(pluginPath + "/")) {
+            return "";
+        }
+
+        String action = path.substring(pluginPath.length() + 1);
+        return action.isBlank() || action.contains("/") ? "" : action;
     }
 
     private PlayerRef extractPlayerRef(Map<String, Object> payload) {
@@ -476,7 +508,7 @@ public class WebConnectorPlugin extends JavaPlugin implements Listener {
             List<String> commands = actionSection.getStringList("commands");
             List<String> deleteFiles = actionSection.getStringList("delete-files");
             boolean shutdown = actionSection.getBoolean("shutdown", false);
-            long shutdownDelay = actionSection.getLong("shutdown-delay-ticks", 1L);
+            long shutdownDelay = Math.max(1L, actionSection.getLong("shutdown-delay-ticks", 1L));
             loaded.put(key, new ActionDefinition(
                     enabled,
                     commands == null ? List.of() : commands,

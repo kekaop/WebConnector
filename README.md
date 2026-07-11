@@ -2,6 +2,7 @@
 
 HTTP bridge plugin that executes server actions based on incoming requests.  
 All accepted actions, headers, payload keys, and side effects are configured in `config.yml`.
+WebConnector does not serve a dashboard UI; NodeDashboard must be deployed separately.
 
 ### Features
 - Configurable API host, port, and base path.
@@ -10,6 +11,15 @@ All accepted actions, headers, payload keys, and side effects are configured in 
 - Per-action commands, file deletions, and optional shutdown.
 - Placeholder expansion using any JSON payload key.
 - Optional event dispatch to external webhooks.
+
+### Building
+From the project root, run:
+- **With local Gradle:** `gradle build`
+- **Windows wrapper, if present:** `gradlew.bat build`
+- **Linux / macOS wrapper, if present:** `./gradlew build`
+
+The jar is produced in `build/libs/`.
+The project targets Java 25 and compiles against Paper API 26.1.2.
 
 ### Installation
 1. Drop the jar into your server `plugins/` folder.
@@ -34,6 +44,45 @@ Action options:
 - `delete-files`: list of file paths to delete.
 - `shutdown`: whether to stop the server after action.
 - `shutdown-delay-ticks`: delay before shutdown (1 tick = 50ms).
+
+### NodeDashboard Deployment Settings
+WebConnector is the per-node HTTP/action bridge only. Keep NodeDashboard in its own deployment and configure each node with values that match the NodeDashboard node entry.
+
+Runtime `plugins/WebConnector/config.yml`:
+```yaml
+plugin-host: "0.0.0.0"
+plugin-port: 25575
+plugin-path: "/api"
+shared-secret-header: "X-Shared-Secret"
+shared-secret: "replace-with-node-dashboard-secret"
+allowed-methods:
+  - POST
+actions:
+  shutdownNode:
+    enabled: true
+    commands: []
+    shutdown: true
+    shutdown-delay-ticks: 20
+```
+
+Matching NodeDashboard node settings:
+```yaml
+plugin-port: 25575
+plugin-path: "/api"
+shared-secret: "replace-with-node-dashboard-secret"
+actions:
+  shutdownNode: "shutdownNode"
+```
+
+Action endpoint:
+```http
+POST http://<node-host>:25575/api/shutdownNode
+X-Shared-Secret: replace-with-node-dashboard-secret
+
+{}
+```
+
+Use unique ports or host routing per node, and replace the placeholder secret with the same non-empty value on both sides.
 
 ### API
 Endpoint:
