@@ -11,7 +11,9 @@ public final class FileGuard {
     private final boolean enabled;
     public FileGuard(Path serverRoot, List<String> allowedRoots, List<Path> protectedPaths, boolean enabled) throws IOException {
         this.serverRoot = serverRoot.toRealPath(); this.enabled = enabled;
-        this.protectedPaths = protectedPaths.stream().map(p -> p.toAbsolutePath().normalize()).toList();
+        List<Path> protectedCanonical = new ArrayList<>();
+        for (Path path : protectedPaths) protectedCanonical.add(canonicalProtection(path));
+        this.protectedPaths = List.copyOf(protectedCanonical);
         List<Path> safe = new ArrayList<>();
         for (String root : allowedRoots) {
             Path p = this.serverRoot.resolve(root).normalize();
@@ -21,6 +23,15 @@ public final class FileGuard {
             safe.add(p);
         }
         roots = List.copyOf(safe);
+    }
+    private static Path canonicalProtection(Path path) throws IOException {
+        Path absolute = path.toAbsolutePath().normalize(), existing = absolute;
+        // Expand Windows 8.3 aliases and redirected parents even when the protected file is not created yet.
+        while (!Files.exists(existing, LinkOption.NOFOLLOW_LINKS)) {
+            existing = existing.getParent();
+            if (existing == null) throw new IOException("Cannot resolve protected filesystem path");
+        }
+        return existing.toRealPath().resolve(existing.relativize(absolute)).normalize();
     }
     public Path validate(String file) throws IOException {
         if (!enabled) throw new IOException("File deletion is disabled");

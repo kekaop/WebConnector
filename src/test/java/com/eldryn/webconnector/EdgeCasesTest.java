@@ -64,16 +64,28 @@ class EdgeCasesTest {
     @Test void fileGuardRejectsSymbolicLinkOrWindowsJunction() throws Exception {
         Path allowed = Files.createDirectory(root.resolve("allowed")), outside = Files.createDirectory(root.resolve("outside"));
         Files.writeString(outside.resolve("important.txt"), "keep"); Path link = allowed.resolve("link");
-        if (System.getProperty("os.name").startsWith("Windows")) {
-            Process process = new ProcessBuilder("powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
-                    "New-Item -ItemType Junction -Path '" + link.toString().replace("'", "''") + "' -Target '" + outside.toString().replace("'", "''") + "' | Out-Null").start();
-            assertEquals(0, process.waitFor());
-        } else Files.createSymbolicLink(link, outside);
+        directoryLink(link, outside);
         try {
             FileGuard guard = new FileGuard(root, List.of("allowed"), List.of(root.resolve("plugin")), true);
             assertThrows(java.io.IOException.class, () -> guard.delete("allowed/link/important.txt"));
             assertTrue(Files.exists(outside.resolve("important.txt")));
         } finally { Files.deleteIfExists(link); }
+    }
+    @Test void protectedPathsAreCanonicalizedIncludingMissingChildren() throws Exception {
+        Path privateDirectory = Files.createDirectories(root.resolve("private/WebConnector"));
+        Path alias = root.resolve("alias"); directoryLink(alias, root.resolve("private"));
+        try {
+            assertThrows(java.io.IOException.class, () -> new FileGuard(root, List.of("private"), List.of(alias.resolve("WebConnector")), true));
+            assertThrows(java.io.IOException.class, () -> new FileGuard(root, List.of("private"), List.of(alias.resolve("WebConnector/security.yml")), true));
+            assertTrue(Files.isDirectory(privateDirectory));
+        } finally { Files.deleteIfExists(alias); }
+    }
+    private static void directoryLink(Path link, Path target) throws Exception {
+        if (System.getProperty("os.name").startsWith("Windows")) {
+            Process process = new ProcessBuilder("powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+                    "New-Item -ItemType Junction -Path '" + link.toString().replace("'", "''") + "' -Target '" + target.toString().replace("'", "''") + "' | Out-Null").start();
+            assertEquals(0, process.waitFor());
+        } else Files.createSymbolicLink(link, target);
     }
     @Test void eventBridgeReadsGettersWithoutInvokingArbitraryMethods() {
         class TestEvent extends org.bukkit.event.Event {
