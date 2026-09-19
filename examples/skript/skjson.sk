@@ -1,0 +1,36 @@
+# SkJson 6.0.0 syntax. Load only the example for the addon installed on this server.
+# Set {webconnector.secret} privately, outside public scripts. Never print it.
+# Configure a scoped key and the grant-pass action before using wc-json-grant.
+
+command /wc-json-grant <text>:
+    executable by: console
+    trigger:
+        if {webconnector.secret} is not set:
+            send "Configure the private WebConnector secret first." to console
+            stop
+        set {_request} to prepare POST request on "http://127.0.0.1:25575/api/grant-pass"
+        set {_request}'s headers to "Content-Type: application/json", "X-Shared-Secret: %{webconnector.secret}%", "Idempotency-Key: %arg-1%", "Prefer: respond-async"
+        set {_request}'s body to parse "{""player"":""Steve"",""pass"":""premium""}" as json
+        # This effect waits on SkJson's async worker and resumes the trigger.
+        execute {_request}
+        set {_response} to last response of {_request}
+        set {_code} to status code of {_response}
+        if {_code} is 202:
+            send "Accepted. Use wc-json-poll with operation_id from the response." to console
+        else if {_code} is 200:
+            send "Completed or replayed." to console
+        else:
+            send "HTTP %{_code}%. Keep the order key and inspect the result before retrying." to console
+        send "%body of {_response}%" to console
+
+command /wc-json-poll <text>:
+    executable by: console
+    trigger:
+        if {webconnector.secret} is not set:
+            stop
+        set {_request} to prepare GET request on "http://127.0.0.1:25575/api/operations/%arg-1%"
+        set {_request}'s headers to "X-Shared-Secret: %{webconnector.secret}%"
+        execute {_request}
+        set {_response} to last response of {_request}
+        send "HTTP %status code of {_response}%: %body of {_response}%" to console
+        # Read operation.state: HTTP 200 alone does not mean the action succeeded.

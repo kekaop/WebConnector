@@ -3,29 +3,80 @@ plugins {
 }
 
 group = 'com.eldryn'
-version = '1.1.0-SNAPSHOT'
+version = '2.0.0'
 
 repositories {
     mavenCentral()
     maven {
-        name = 'papermc'
-        url = 'https://repo.papermc.io/repository/maven-public/'
+        url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/'
     }
 }
 
 dependencies {
-    compileOnly 'io.papermc.paper:paper-api:26.1.2.build.72-stable'
-    compileOnly 'com.google.code.gson:gson:2.11.0'
+    compileOnly 'org.spigotmc:spigot-api:1.20.1-R0.1-SNAPSHOT'
+    testImplementation "org.spigotmc:spigot-api:${findProperty('testApi') ?: '1.20.1-R0.1-SNAPSHOT'}"
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(25)
-    }
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+    withSourcesJar()
+    withJavadocJar()
 }
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+    options.release = 17
+}
+
+test {
+    useJUnitPlatform()
+    if (project.hasProperty('testJavaHome')) {
+        executable = "${project.property('testJavaHome')}/bin/java${System.getProperty('os.name').startsWith('Windows') ? '.exe' : ''}"
+    }
+    testLogging { events 'failed', 'skipped'; exceptionFormat 'full' }
+}
+tasks.named('compileTestJava', JavaCompile) {
+    if (project.hasProperty('testJavaHome')) {
+        options.fork = true
+        options.forkOptions.executable = "${project.property('testJavaHome')}/bin/javac${System.getProperty('os.name').startsWith('Windows') ? '.exe' : ''}"
+    }
+}
+javadoc { options.addStringOption('Xdoclint:none', '-quiet') }
+tasks.register('apiJar', Jar) {
+    dependsOn classes
+    archiveClassifier = 'api'
+    from(sourceSets.main.output) { include 'com/eldryn/webconnector/api/**' }
+}
+tasks.named('assemble') { dependsOn 'apiJar' }
+sourceSets {
+    example {
+        java.srcDir 'examples/java/src/main/java'
+        resources.srcDir 'examples/java/src/main/resources'
+        compileClasspath += sourceSets.main.output + configurations.compileClasspath
+    }
+}
+tasks.register('exampleJar', Jar) {
+    dependsOn exampleClasses
+    archiveBaseName = 'WebConnectorExample'
+    from sourceSets.example.output
+}
+tasks.named('check') { dependsOn 'exampleJar' }
+tasks.register('docsZip', Zip) {
+    archiveClassifier = 'docs'
+    from('README.md', 'README.ru.md', 'CHANGELOG.md', 'SECURITY.md')
+    into('docs') { from 'docs' }
+    into('examples') { from('examples') { exclude '**/__pycache__/**', '**/*.pyc' } }
+    into('scripts') { from 'scripts' }
+    into('config') { from 'src/main/resources/config.yml' }
+}
+tasks.named('assemble') { dependsOn 'docsZip' }
+tasks.withType(AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
 }
 
 processResources {

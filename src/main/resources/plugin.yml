@@ -1,4 +1,33 @@
 name: WebConnector
 version: '${version}'
 main: com.eldryn.webconnector.WebConnectorPlugin
-api-version: "26.1.2"
+api-version: '1.20'
+description: Secure HTTP and Java action gateway with signed webhooks
+authors: [Orven]
+website: https://github.com/kekaop/WebConnector
+commands:
+  webconnector:
+    description: Manage WebConnector actions, operations and event routes
+    aliases: [wc]
+    usage: /webconnector <status|reload|actions|action|operations|test|events|diagnostics>
+permissions:
+  webconnector.admin:
+    default: op
+    children:
+      webconnector.reload: true
+      webconnector.status: true
+      webconnector.execute: true
+      webconnector.diagnostics: true
+  webconnector.reload:
+    default: op
+  webconnector.status:
+    default: op
+  webconnector.execute:
+    default: op
+  webconnector.diagnostics:
+    default: op
+  webconnector.dangerous:
+    description: Explicitly allow dangerous actions from in-game commands
+    default: false
+  webconnector.shutdown:
+    default: false

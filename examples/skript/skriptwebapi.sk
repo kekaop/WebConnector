@@ -1,0 +1,40 @@
+# SkriptWebAPI v0.1.2 syntax. Uses its asynchronous request effect.
+# Set {webconnector.secret} privately. Never send credentials to players.
+
+command /wc-web-grant <text>:
+    executable by: console
+    trigger:
+        if {webconnector.secret} is not set:
+            send "Configure the private WebConnector secret first." to console
+            stop
+        set {_request} to new http request with method "POST"
+        set {_request}'s target url to "http://127.0.0.1:25575/api/grant-pass"
+        set {_request}'s header "X-Shared-Secret" to {webconnector.secret}
+        set {_request}'s header "Content-Type" to "application/json"
+        set {_request}'s header "Idempotency-Key" to arg-1
+        set {_request}'s header "Prefer" to "respond-async"
+        set {_request}'s body to "{""player"":""Steve"",""pass"":""premium""}"
+        send async web request with {_request}
+
+command /wc-web-poll <text>:
+    executable by: console
+    trigger:
+        if {webconnector.secret} is not set:
+            stop
+        set {_request} to new http request with method "GET"
+        set {_request}'s target url to "http://127.0.0.1:25575/api/operations/%arg-1%"
+        set {_request}'s header "X-Shared-Secret" to {webconnector.secret}
+        send async web request with {_request}
+
+on web request response:
+    set {_response} to event-httpresponse
+    # Only display this integration's responses, identified by its request-ID header.
+    set {_requestId} to {_response}'s header value from key "X-Request-ID"
+    if {_requestId} is not set:
+        stop
+    set {_code} to status code of {_response}
+    if {_code} is 202:
+        send "Accepted. Poll operation_id using wc-web-poll." to console
+    else if {_code} is not 200:
+        send "HTTP %{_code}%. Inspect the response; retry only with the same order key." to console
+    send "Request %{_requestId}%: %body of {_response}%" to console

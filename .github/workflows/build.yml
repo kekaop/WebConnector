@@ -1,0 +1,45 @@
+name: Build and compatibility tests
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compatibility:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        target:
+          - { api: '1.20.1-R0.1-SNAPSHOT', java: '17' }
+          - { api: '1.20.6-R0.1-SNAPSHOT', java: '21' }
+          - { api: '1.21.11-R0.1-SNAPSHOT', java: '21' }
+          - { api: '26.2-R0.1-SNAPSHOT', java: '25' }
+          - { api: '26.3-R0.1-SNAPSHOT', java: '25' }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        id: target
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.target.java }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build and test
+        shell: bash
+        env:
+          TEST_JAVA: ${{ steps.target.outputs.path }}
+          TEST_API: ${{ matrix.target.api }}
+        run: bash ./gradlew build "-PtestJavaHome=$TEST_JAVA" "-PtestApi=$TEST_API" --no-daemon
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: results-${{ matrix.os }}-${{ matrix.target.api }}
+          path: |
+            build/test-results/test/
+            build/reports/tests/test/
+            build/libs/

@@ -1,0 +1,46 @@
+# SkHttp 1.5 syntax. Diagnostic sample: serialize calls; last response is addon-global.
+# Use SkJson's request-scoped response for concurrent business integrations.
+# Set {webconnector.secret} privately before use. Only one builder is used here.
+
+function wc_http_request(method: text, path: text, body: text, key: text):
+    if {webconnector.secret} is not set:
+        send "Configure the private WebConnector secret first." to console
+        stop
+    if {webconnector.skhttp.busy} is true:
+        send "Wait for the previous SkHttp request." to console
+        stop
+    set {webconnector.skhttp.busy} to true
+    http request builder stored in {_request}:
+        url: "http://127.0.0.1:25575/api/%{_path}%"
+        method: {_method}
+        body: {_body}
+        timeout: 15 seconds
+        headers:
+            X-Shared-Secret: {webconnector.secret}
+            Content-Type: application/json
+            Idempotency-Key: {_key}
+            Prefer: respond-async
+    send async request using {_request}:
+        set {_response} to last http response
+        set {webconnector.skhttp.busy} to false
+        if {_response} is not set:
+            send "Transport failure. Preserve the original order key." to console
+            stop
+        if status code of {_response} is 202:
+            send "Accepted. Poll operation_id using wc-http-poll." to console
+        else if status code of {_response} is not 200:
+            send "Inspect the HTTP error before retrying with the same key." to console
+        send "HTTP %status code of {_response}%: %body of {_response}%" to console
+
+command /wc-http-grant <text>:
+    executable by: console
+    trigger:
+        wc_http_request("POST", "grant-pass", "{""player"":""Steve"",""pass"":""premium""}", arg-1)
+
+command /wc-http-poll <text>:
+    executable by: console
+    trigger:
+        wc_http_request("GET", "operations/%arg-1%", "", "poll")
+
+on script load:
+    set {webconnector.skhttp.busy} to false

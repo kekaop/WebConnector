@@ -8,3 +8,6 @@ out/
 bin/
 .gradle-clean/
 .gradle-tmp/
+__pycache__/
+*.pyc
+testbed-runtime/

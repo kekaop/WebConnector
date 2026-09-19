@@ -1,0 +1,163 @@
+openapi: 3.0.3
+info:
+  title: WebConnector API
+  version: 2.0.0
+  description: Configured Minecraft actions and persistent operation status. Action payload schemas are defined by the server administrator.
+servers:
+  - url: http://127.0.0.1:25575/api
+security:
+  - ApiKey: []
+paths:
+  /{action}:
+    post:
+      operationId: executeAction
+      summary: Execute an explicitly exposed action
+      description: POST is the default action method. Administrators may additionally enable PUT or PATCH with the same contract. Empty bodies mean an empty object. The same caller and idempotency key replay the original operation; changed payloads conflict.
+      parameters:
+        - name: action
+          in: path
+          required: true
+          schema: {type: string, pattern: '^[A-Za-z0-9_-][A-Za-z0-9_.-]{0,63}$'}
+        - name: Idempotency-Key
+          in: header
+          description: Required when the action requires idempotency; scoped to the named caller across actions.
+          schema: {type: string, pattern: '^[A-Za-z0-9._:-]{1,128}$'}
+        - name: Prefer
+          in: header
+          schema: {type: string, enum: [respond-async]}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+            example: {player: Steve, pass: premium}
+      responses:
+        '200':
+          description: Completed action or replayed successful operation
+          headers:
+            Location: {schema: {type: string}, description: Relative operation status URL}
+            X-Request-ID: {schema: {type: string, format: uuid}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ActionResponse'}
+        '202':
+          description: Accepted operation; poll its Location
+          headers:
+            Location: {schema: {type: string}, description: Relative operation status URL}
+            X-Request-ID: {schema: {type: string, format: uuid}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ActionResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '405': {$ref: '#/components/responses/MethodNotAllowed'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '429': {$ref: '#/components/responses/Limited'}
+        '500': {$ref: '#/components/responses/Failure'}
+  /operations/{operation_id}:
+    get:
+      operationId: getOperation
+      summary: Retrieve an operation owned by the authenticated caller
+      parameters:
+        - name: operation_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Operation status; failed and cancelled operations also return HTTP 200
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, request_id, operation]
+                properties:
+                  status: {type: string, enum: [queued, running, completed, failed, cancelled]}
+                  request_id: {type: string, format: uuid}
+                  operation: {$ref: '#/components/schemas/Operation'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '405': {$ref: '#/components/responses/MethodNotAllowed'}
+        '429': {$ref: '#/components/responses/Limited'}
+        '500': {$ref: '#/components/responses/Failure'}
+components:
+  securitySchemes:
+    ApiKey:
+      type: apiKey
+      in: header
+      name: X-Shared-Secret
+      description: Default header; administrators may configure a different header name.
+  schemas:
+    Result:
+      type: object
+      required: [successful, code, message]
+      properties:
+        successful: {type: boolean}
+        code: {type: string}
+        message: {type: string}
+    ActionResponse:
+      type: object
+      required: [status, request_id, operation_id, operation_request_id, replayed]
+      properties:
+        status: {type: string, enum: [success, accepted, error]}
+        request_id: {type: string, format: uuid}
+        operation_id: {type: string, format: uuid}
+        operation_request_id: {type: string, format: uuid}
+        replayed: {type: boolean}
+        result: {$ref: '#/components/schemas/Result'}
+    Operation:
+      type: object
+      required: [id, action, created_at, state, initiator, request_id]
+      properties:
+        id: {type: string, format: uuid}
+        action: {type: string}
+        created_at: {type: string, format: date-time}
+        completed_at: {type: string, format: date-time}
+        state: {type: string, enum: [QUEUED, RUNNING, COMPLETED, FAILED, CANCELLED]}
+        result: {$ref: '#/components/schemas/Result'}
+        initiator: {type: string}
+        request_id: {type: string, format: uuid}
+    Error:
+      type: object
+      required: [status, request_id, code, message]
+      properties:
+        status: {type: string, enum: [error]}
+        request_id: {type: string, format: uuid}
+        code: {type: string}
+        message: {type: string}
+  responses:
+    BadRequest:
+      description: Invalid JSON, schema, content type, body size, duplicate header, operation ID or idempotency key
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    Unauthorized:
+      description: Missing, invalid, disabled or expired API key
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    Forbidden:
+      description: IP, action, permission or dangerous-action policy denied
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    NotFound:
+      description: Action or operation not found or not accessible to this caller
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    MethodNotAllowed:
+      description: This endpoint does not accept the requested method
+      headers: {Allow: {schema: {type: string}}}
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    Conflict:
+      description: Idempotency key used with a different payload/action, or dangerous operation already running
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    Limited:
+      description: Rate limit, action queue or persistent operation journal is full
+      headers: {Retry-After: {schema: {type: integer, example: 60}}}
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    Failure:
+      description: Internal or storage failure, or a failed operation with a safe result and operation ID
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - {$ref: '#/components/schemas/Error'}
+              - {$ref: '#/components/schemas/ActionResponse'}

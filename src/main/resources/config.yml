@@ -1,93 +1,113 @@
-# Must match NodeDashboard's per-node shared secret.
-shared-secret: "replace-with-node-dashboard-secret"
-shared-secret-header: "X-Shared-Secret"
+config-version: 2
 
-plugin-host: "0.0.0.0"
-plugin-port: 25575
-plugin-path: "/api"
-debug-logging: false
-allowed-methods:
-  - POST
+server:
+  name: "lobby-01"
+  host: "127.0.0.1"
+  port: 25575
+  path: "/api"
+  allowed-methods: [POST]
 
-# JSON payload keys to resolve player references.
+security:
+  require-authentication: true
+  development-mode: false
+  allow-unauthenticated-localhost: false
+  shared-secret-header: "X-Shared-Secret"
+  # A random secret is generated on first installation. Never publish this file.
+  shared-secret: ""
+  shared-secret-actions: [ping]
+  shared-secret-permissions: []
+  shared-secret-allow-dangerous: false
+  ip-allowlist: []
+  api-keys: {}
+  # shop:
+  #   secret: "<random secret of at least 32 characters>"
+  #   enabled: true
+  #   expires-at: "2027-01-01T00:00:00Z"
+  #   actions: [grant-pass]
+  #   permissions: []
+  #   allow-dangerous: false
+
+limits:
+  max-body-size-kb: 64
+  request-timeout-seconds: 10
+  rate-limit-per-minute: 60
+  ip-per-minute: 120
+  key-per-minute: 60
+  action-per-minute: 60
+  http-threads: 4
+  action-threads: 2
+  action-queue: 128
+
+operations:
+  max-records: 10000
+
+files:
+  enabled: false
+  allowed-roots: []
+
 payload:
-  player-name-keys:
-    - player_name
-    - player
-    - name
-  player-uuid-keys:
-    - player_uuid
-    - uuid
+  player-name-keys: [player_name, player, name]
+  player-uuid-keys: [player_uuid, uuid]
 
-# Commands to execute for each incoming action.
-# Placeholders: {player}, {uuid}, {action}, plus any JSON key from the payload.
 actions:
-  # Used by NodeDashboard to stop this node through POST <plugin-path>/shutdownNode.
-  shutdownNode:
+  ping:
+    description: "Check authenticated action execution"
     enabled: true
+    expose-http: true
+    commands: []
+  grant-pass:
+    description: "Grant a configured LuckPerms group"
+    enabled: false
+    expose-http: true
+    require-idempotency: true
+    async: true
+    timeout-seconds: 10
+    validation:
+      player:
+        type: player_name
+        max-length: 16
+      pass:
+        type: enum
+        allowed: [vip, premium]
+    commands:
+      - "lp user {player} parent add {pass}"
+  shutdownNode:
+    description: "Stop this Minecraft server"
+    enabled: false
+    expose-http: true
+    dangerous: true
+    require-idempotency: true
+    permission: "webconnector.shutdown"
     commands: []
     shutdown: true
     shutdown-delay-ticks: 20
-  gradientApply:
-    enabled: true
-    commands: []
-  gradientClear:
-    enabled: true
-    commands: []
-  emblemApply:
-    enabled: true
-    commands: []
-  emblemClear:
-    enabled: true
-    commands: []
-  passApply:
-    enabled: true
-    commands: []
-  addWhiteList:
-    enabled: true
-    commands: []
-  removeWhiteList:
-    enabled: true
-    commands: []
-  updateSeason:
-    enabled: true
-    commands: []
-    delete-files:
-      - "plugins/simplewhitelist/whitelist.txt"
-    shutdown: true
-    shutdown-delay-ticks: 1
 
-# Outgoing event dispatching (webhooks).
 event-dispatch:
   enabled: false
   base-url: "http://127.0.0.1:3000/webhook"
-  method: POST
+  signing-secret: ""
   timeout-seconds: 5
+  queue-capacity: 512
+  max-attempts: 5
+  backoff-millis: 1000
+  headers: {}
   event-name-field: "event"
-  headers:
-    X-Shared-Secret: "replace-me"
 
-# Event routes and payload mapping.
-# Keys are event class names, either full or short (e.g. PlayerJoinEvent).
 event-routes:
   PlayerJoinEvent:
     enabled: true
-    method: POST
-    priority: NORMAL
+    type: "player.join"
+    priority: MONITOR
     ignore-cancelled: true
-    include-event-name: true
-    include-timestamp: true
+    legacy-payload: false
+    filters: {}
     payload:
       player: "{event.player.name}"
       uuid: "{event.player.uniqueId}"
       world: "{event.player.world.name}"
   PlayerFirstJoinEvent:
     enabled: false
-    method: POST
-    priority: NORMAL
-    ignore-cancelled: true
-    include-event-name: true
-    include-timestamp: true
+    type: "player.first_join"
     payload:
       player: "{event.player.name}"
       uuid: "{event.player.uniqueId}"
